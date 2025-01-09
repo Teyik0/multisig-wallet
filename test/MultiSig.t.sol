@@ -371,6 +371,27 @@ contract MultiSigTest is Test {
         vm.stopPrank();
     }
 
+    function test_submitSignerRequest_failed_NoEnoughtSigner() public {
+        address[] memory dynamicArray = new address[](2);
+        dynamicArray[0] = USER1;
+        dynamicArray[1] = USER2;
+        multiSig = new MultiSig(dynamicArray, 2);
+
+        vm.startPrank(USER1);
+        vm.expectRevert("Cannot remove signer, minimum 2 signers required");
+        multiSig.submitSignerRequest(USER2, false);
+        vm.stopPrank();
+    }
+
+    function test_submitSignerRequest_failed_InvalidSigner() public {
+        vm.startPrank(USER1);
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidSigner(address)", USER6)
+        );
+        multiSig.submitSignerRequest(USER6, false);
+        vm.stopPrank();
+    }
+
     function test_submitSignerRequest_failed_AlreadyASigner() public {
         vm.startPrank(USER1);
         vm.expectRevert(
@@ -400,6 +421,34 @@ contract MultiSigTest is Test {
         assertEq(request.numConfirmations, 2);
         assertEq(request.executed, false);
         assertEq(request.newSigner, USER5);
+    }
+
+    function test_confirmSignerRequest_failed_TxDoesNotExist() public {
+        vm.startPrank(USER1);
+        vm.expectRevert();
+        multiSig.confirmSignerRequest(999);
+        vm.stopPrank();
+    }
+
+    function test_confirmSignerRequest_failed_TxAlreadyExecuted() public {
+        vm.startPrank(USER1);
+        multiSig.submitSignerRequest(USER5, true);
+        vm.stopPrank();
+
+        vm.startPrank(USER2);
+        multiSig.confirmSignerRequest(0);
+        vm.stopPrank();
+
+        vm.startPrank(USER3);
+        multiSig.confirmSignerRequest(0);
+        vm.stopPrank();
+
+        vm.startPrank(USER2);
+        vm.expectRevert(
+            abi.encodeWithSignature("TxAlreadyExecuted(uint256)", 0)
+        );
+        multiSig.confirmSignerRequest(0);
+        vm.stopPrank();
     }
 
     function test_executeSignerRequest() public {
