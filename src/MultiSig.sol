@@ -241,7 +241,11 @@ contract MultiSig {
     /**
      * @dev Returns the details of a transaction.
      * @param _txIndex The index of the transaction.
-     * @return The details of the transaction.
+     * @return to The address the transaction is sent to.
+     * @return value The amount of ether to send in the transaction.
+     * @return data The data payload for the transaction.
+     * @return executed Whether the transaction has been executed.
+     * @return numConfirmations The number of confirmations for the transaction.
      */
     function getTransaction(
         uint _txIndex
