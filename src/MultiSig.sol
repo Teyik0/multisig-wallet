@@ -23,6 +23,10 @@ error TxNotConfirmed(uint256 txIndex, address signer);
 error AlreadyASigner(address signer);
 error MaxSignersExceeded();
 
+/**
+ * @title MultiSig
+ * @dev A multi-signature wallet contract that requires multiple confirmations for transactions.
+ */
 contract MultiSig {
     event Deposit(address indexed sender, uint amount, uint balance);
     event SubmitTransaction(
@@ -55,6 +59,9 @@ contract MultiSig {
 
     Transaction[] public transactions;
 
+    /**
+     * @dev Modifier to check if the caller is a signer.
+     */
     modifier onlySigner() {
         if (!isSigner[msg.sender]) {
             revert NotSigner();
@@ -62,6 +69,10 @@ contract MultiSig {
         _;
     }
 
+    /**
+     * @dev Modifier to check if a transaction exists.
+     * @param _txIndex The index of the transaction.
+     */
     modifier txExists(uint _txIndex) {
         if (_txIndex >= transactions.length) {
             revert TxDoesNotExist(_txIndex, transactions.length);
@@ -69,6 +80,10 @@ contract MultiSig {
         _;
     }
 
+    /**
+     * @dev Modifier to check if a transaction is not executed.
+     * @param _txIndex The index of the transaction.
+     */
     modifier notExecuted(uint _txIndex) {
         if (transactions[_txIndex].executed) {
             revert TxAlreadyExecuted(_txIndex);
@@ -76,6 +91,10 @@ contract MultiSig {
         _;
     }
 
+    /**
+     * @dev Modifier to check if a transaction is not confirmed by the caller.
+     * @param _txIndex The index of the transaction.
+     */
     modifier notConfirmed(uint _txIndex) {
         if (isConfirmed[_txIndex][msg.sender]) {
             revert TxAlreadyConfirmed(_txIndex, msg.sender);
@@ -83,6 +102,11 @@ contract MultiSig {
         _;
     }
 
+    /**
+     * @dev Constructor to initialize the contract with signers and the number of confirmations required.
+     * @param _signers The addresses of the signers.
+     * @param _numConfirmationRequired The number of confirmations required for a transaction.
+     */
     constructor(address[] memory _signers, uint _numConfirmationRequired) {
         if (_signers.length < 2) {
             // 2 signers minimum
@@ -114,6 +138,12 @@ contract MultiSig {
         numConfirmationsRequired = _numConfirmationRequired;
     }
 
+    /**
+     * @dev Submits a transaction to be confirmed by the signers.
+     * @param _to The address to send the transaction to.
+     * @param _value The value of the transaction.
+     * @param _data The data of the transaction.
+     */
     function submitTransaction(
         address _to,
         uint _value,
@@ -133,6 +163,10 @@ contract MultiSig {
         emit SubmitTransaction(msg.sender, txIndex, _to, _value, _data);
     }
 
+    /**
+     * @dev Confirms a transaction.
+     * @param _txIndex The index of the transaction to confirm.
+     */
     function confirmTransaction(
         uint _txIndex
     )
@@ -152,6 +186,10 @@ contract MultiSig {
         }
     }
 
+    /**
+     * @dev Executes a confirmed transaction.
+     * @param _txIndex The index of the transaction to execute.
+     */
     function _executeTransaction(uint _txIndex) private {
         Transaction storage transaction = transactions[_txIndex];
         transaction.executed = true;
@@ -165,6 +203,10 @@ contract MultiSig {
         emit ExecuteTransaction(msg.sender, _txIndex);
     }
 
+    /**
+     * @dev Revokes a confirmation for a transaction.
+     * @param _txIndex The index of the transaction to revoke confirmation for.
+     */
     function revokeConfirmation(
         uint _txIndex
     ) public onlySigner txExists(_txIndex) notExecuted(_txIndex) {
@@ -180,14 +222,27 @@ contract MultiSig {
         emit RevokeConfirmation(msg.sender, _txIndex);
     }
 
+    /**
+     * @dev Returns the list of signers.
+     * @return The list of signers.
+     */
     function getSigners() public view returns (address[] memory) {
         return signers;
     }
 
+    /**
+     * @dev Returns the number of transactions.
+     * @return The number of transactions.
+     */
     function getTransactionCount() public view returns (uint) {
         return transactions.length;
     }
 
+    /**
+     * @dev Returns the details of a transaction.
+     * @param _txIndex The index of the transaction.
+     * @return The details of the transaction.
+     */
     function getTransaction(
         uint _txIndex
     )
@@ -231,6 +286,11 @@ contract MultiSig {
     }
     SignerRequest[] public signerRequests;
 
+    /**
+     * @dev Submits a request to add or revoke a signer.
+     * @param _newSigner The address of the new signer.
+     * @param addOrRevoke True to add a signer, false to revoke a signer.
+     */
     function submitSignerRequest(
         address _newSigner,
         bool addOrRevoke
@@ -272,6 +332,10 @@ contract MultiSig {
         emit AddSignerRequestSubmitted(requestId, _newSigner);
     }
 
+    /**
+     * @dev Confirms a signer request.
+     * @param _requestId The index of the signer request to confirm.
+     */
     function confirmSignerRequest(uint _requestId) public onlySigner {
         if (_requestId >= signerRequests.length) {
             revert TxDoesNotExist(_requestId, signerRequests.length);
@@ -300,6 +364,10 @@ contract MultiSig {
         }
     }
 
+    /**
+     * @dev Executes an add signer request.
+     * @param request The signer request to execute.
+     */
     function _executeAddSignerRequest(SignerRequest storage request) private {
         isSigner[request.newSigner] = true;
         signers.push(request.newSigner);
@@ -309,6 +377,10 @@ contract MultiSig {
         emit AddSignerRequestExecuted(request.newSigner);
     }
 
+    /**
+     * @dev Executes a revoke signer request.
+     * @param request The signer request to execute.
+     */
     function _executeRevokeSignerRequest(SignerRequest memory request) private {
         uint signerIndex = signerIndexOf(request.newSigner);
 
@@ -322,6 +394,11 @@ contract MultiSig {
         emit RevokeSignerRequestExecuted(request.newSigner);
     }
 
+    /**
+     * @dev Returns the index of a signer.
+     * @param _signer The address of the signer.
+     * @return The index of the signer.
+     */
     function signerIndexOf(address _signer) internal view returns (uint) {
         for (uint i = 0; i < signers.length; i++) {
             if (signers[i] == _signer) {
@@ -331,16 +408,28 @@ contract MultiSig {
         revert("Signer not found");
     }
 
+    /**
+     * @dev Returns the number of signer requests.
+     * @return The number of signer requests.
+     */
     function getSignerRequestsCount() public view returns (uint) {
         return signerRequests.length;
     }
 
+    /**
+     * @dev Returns the details of a signer request.
+     * @param _requestId The index of the signer request.
+     * @return The details of the signer request.
+     */
     function getSignerRequest(
         uint _requestId
     ) public view returns (SignerRequest memory) {
         return signerRequests[_requestId];
     }
 
+    /**
+     * @dev Fallback function to receive Ether.
+     */
     receive() external payable {
         emit Deposit(msg.sender, msg.value, address(this).balance);
     }
