@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
+import {console} from "forge-std/Test.sol";
 
 error NotSigner();
 error TxDoesNotExist(uint256 txIndex, uint256 transactionsLength);

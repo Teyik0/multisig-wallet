@@ -39,6 +39,35 @@ contract MultiSigTest is Test {
         vm.deal(USER6, 1 ether);
     }
 
+    function test_constructor_failed_SignersRequired() public {
+        address[] memory dynamicArray = new address[](1);
+        dynamicArray[0] = USER1;
+        vm.expectRevert(abi.encodeWithSignature("SignersRequired()"));
+        multiSig = new MultiSig(dynamicArray, 1);
+    }
+
+    function test_constructor_failed_InvalidNumConfirmationsRequired() public {
+        address[4] memory staticArray = [USER1, USER2, USER3, USER4];
+        vm.expectRevert();
+        multiSig = new MultiSig(toDynamicArr(staticArray), 1);
+    }
+
+    function test_constructor_failed_InvalidSigner() public {
+        address[4] memory staticArray = [address(0), USER2, USER3, USER5];
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidSigner(address)", address(0))
+        );
+        multiSig = new MultiSig(toDynamicArr(staticArray), 3);
+    }
+
+    function test_constructor_failed_DuplicateSigner() public {
+        address[4] memory staticArray = [USER1, USER1, USER3, USER5];
+        vm.expectRevert(
+            abi.encodeWithSignature("DuplicateSigner(address)", USER1)
+        );
+        multiSig = new MultiSig(toDynamicArr(staticArray), 3);
+    }
+
     function test_submitTransaction() public {
         address to = address(0x4);
         uint value = 1 ether;
@@ -100,6 +129,22 @@ contract MultiSigTest is Test {
             "Number of confirmations should be 2 after confirmation"
         );
         assertEq(executed, false, "Transaction has not been executed yet");
+    }
+
+    function test_executeTransaction_failed() public {
+        vm.startPrank(USER1);
+        multiSig.submitTransaction(address(0x244), 1 ether, "");
+        vm.stopPrank();
+
+        vm.startPrank(USER2);
+        multiSig.confirmTransaction(0);
+        vm.stopPrank();
+
+        vm.startPrank(USER3);
+        vm.deal(address(multiSig), 0 ether);
+        vm.expectRevert(abi.encodeWithSignature("TxExecutionFailed()"));
+        multiSig.confirmTransaction(0);
+        vm.stopPrank();
     }
 
     function test_executeTransaction() public {
@@ -232,6 +277,24 @@ contract MultiSigTest is Test {
         vm.stopPrank();
     }
 
+    function test_revokeConfirmation_TxNotConfirmed() public {
+        vm.startPrank(USER1);
+        multiSig.submitTransaction(address(0x123), 100, "data");
+        vm.stopPrank();
+        uint txIndex = multiSig.getTransactionCount() - 1;
+
+        vm.startPrank(USER2);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "TxNotConfirmed(uint256,address)",
+                txIndex,
+                USER2
+            )
+        );
+        multiSig.revokeConfirmation(txIndex);
+        vm.stopPrank();
+    }
+
     function test_revokeConfirmation_failed_txNotExist() public {
         vm.startPrank(USER1);
         uint nonExistentTxIndex = 999;
@@ -297,6 +360,24 @@ contract MultiSigTest is Test {
         assertEq(request.addOrRevoke, true);
         assertEq(request.executed, false);
         assertEq(request.numConfirmations, 1);
+    }
+
+    function test_submitSignerRequest_failed_InvalidAddress() public {
+        vm.startPrank(USER1);
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidSigner(address)", address(0))
+        );
+        multiSig.submitSignerRequest(address(0), true);
+        vm.stopPrank();
+    }
+
+    function test_submitSignerRequest_failed_AlreadyASigner() public {
+        vm.startPrank(USER1);
+        vm.expectRevert(
+            abi.encodeWithSignature("AlreadyASigner(address)", USER1)
+        );
+        multiSig.submitSignerRequest(USER1, true);
+        vm.stopPrank();
     }
 
     function test_submitAddSignerRequest_failed_notASigner() public {
